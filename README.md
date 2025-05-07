@@ -85,5 +85,10 @@ http://localhost:8000/index.html
 
 Proyecto educativo y personal. Puedes modificarlo y adaptarlo libremente.
 
+- [uAgents](https://github.com/fetchai/uAgents) de Fetch.ai para la gestión de agentes.
+- [CesiumJS](https://cesium.com/platform/cesiumjs/) para la visualización 3D de satélites.
+- Skyfield y SGP4 para el cálculo de posiciones orbitales.
+- HTML5, CSS3 y JavaScript para la interfaz web.
+
 ![](md-images/image3.png)
 
