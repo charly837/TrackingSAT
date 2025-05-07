@@ -1,6 +1,6 @@
 # Rastreador de Satélites en Tiempo Real con CesiumJS y Python
 
-!(md-images/image1.png)
+![](md-images/image1.png)
 
 
 Este proyecto permite visualizar satélites en tiempo real sobre un globo 3D utilizando **CesiumJS** para el visor y **Python** para calcular las posiciones satelitales a partir de datos TLE.
@@ -64,7 +64,7 @@ http://localhost:8000/index.html
 
 ## 🛰 Funciones disponibles en el visor
 
-!(md-images/image2.png)
+![](md-images/image2.png)
 
 - Activar/desactivar grupos de satélites.
 - Mostrar/ocultar trayectorias.
@@ -85,5 +85,5 @@ http://localhost:8000/index.html
 
 Proyecto educativo y personal. Puedes modificarlo y adaptarlo libremente.
 
-!(md-images/image3.png)
+![](md-images/image3.png)
 
