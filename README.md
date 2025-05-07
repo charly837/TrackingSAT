@@ -73,6 +73,10 @@ http://localhost:8000/index.html
 - Las posiciones se actualizan cada minuto en el visor.
 - Los TLE se consideran válidos si tienen menos de 30 días.
 
+## NOTA: INGRESAR LA API DE CESIUM EN EL INDEX.HTML 
+
 ## 📄 Licencia
 
 Proyecto educativo y personal. Puedes modificarlo y adaptarlo libremente.
+
+
