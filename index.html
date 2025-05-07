@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Satélites en tiempo real - CesiumJS</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(30, 30, 30, 0.9); /* Fondo oscuro */
+            color: #fff; /* Letras claras */
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #555;
+            z-index: 10;
+            max-height: 95%;
+            overflow-y: auto;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.7);
+        }
+
+        #controls label {
+            display: block;
+            margin-bottom: 3px;
+        }
+        #station-inputs {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <div id="controls">
+        <div id="station-inputs">
+            <strong>Estación base:</strong><br>
+            Lat: <input type="number" id="stationLat" value="40.4168" step="0.0001" style="width: 80px;">
+            Lon: <input type="number" id="stationLon" value="-3.7038" step="0.0001" style="width: 80px;">
+            <button onclick="actualizarEstacion()">Actualizar estación</button>
+        </div>
+        <hr>
+        <strong>Grupos:</strong><br>
+        <br/>
+        <label><input type="checkbox" id="activeCheckbox"> Active</label>
+        <label><input type="checkbox" id="gpsCheckbox"> GPS</label>
+        <label><input type="checkbox" id="starlinkCheckbox"> Starlink</label>
+        <label><input type="checkbox" id="weatherCheckbox"> Weather</label>
+        <label><input type="checkbox" id="iridiumCheckbox"> Iridium</label>
+        <label><input type="checkbox" id="onewebCheckbox"> OneWeb</label>
+        <label><input type="checkbox" id="scienceCheckbox"> Science</label>
+        <label><input type="checkbox" id="visualCheckbox"> Visual</label>
+        <label><input type="checkbox" id="geosyncCheckbox"> Geosync</label>
+        <label><input type="checkbox" id="engineeringCheckbox"> Engineering</label>
+        <label><input type="checkbox" id="educationCheckbox"> Education</label>
+        <label><input type="checkbox" id="amateurCheckbox"> Amateur</label>
+        <label><input type="checkbox" id="leoCheckbox"> LEO</label>
+        <label><input type="checkbox" id="satnogsCheckbox"> SatNOGS</label>
+        <br/>
+        <hr>
+        <label><input type="checkbox" id="toggleTrajectories" > Mostrar trayectorias</label>
+        <hr>
+        <br/>
+        <strong>Alertas:</strong><br>
+        <div id="alertaPanel" style="
+            color: red; 
+            font-weight: bold; 
+            white-space: normal; 
+            word-wrap: break-word; 
+            width: 100%;
+            margin-top: 5px;
+            font-size: 9px;
+            line-height: 1.4;
+        ">
+            Sin alertas activas.
+        </div>
+    </div>
+
+    <script>
+        Cesium.Ion.defaultAccessToken = '<api key cesium>';
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            timeline: false,
+            animation: false
+        });
+
+        viewer.camera.setView({
+            destination : Cesium.Cartesian3.fromDegrees(10, 50, 40000000)
+        });
+
+        let currentDataSource;
+        let estacionLat = parseFloat(document.getElementById('stationLat').value);
+        let estacionLon = parseFloat(document.getElementById('stationLon').value);
+
+        const colores = {
+            'active': Cesium.Color.YELLOW,
+            'gps': Cesium.Color.LIME,
+            'starlink': Cesium.Color.CYAN,
+            'weather': Cesium.Color.BLUE,
+            'iridium': Cesium.Color.MAGENTA,
+            'oneweb': Cesium.Color.ORANGE,
+            'science': Cesium.Color.TEAL,
+            'visual': Cesium.Color.WHITE,
+            'geosync': Cesium.Color.PINK,
+            'engineering': Cesium.Color.BROWN,
+            'education': Cesium.Color.SANDYBROWN,
+            'amateur': Cesium.Color.VIOLET,
+            'leo': Cesium.Color.CHARTREUSE,
+            'satnogs': Cesium.Color.OLIVE
+        };
+
+        const imagenesSat = {
+    'gps': 'sat_images/gps.png',
+    'starlink': 'sat_images/starlink.png',
+    'weather': 'sat_images/weather.png',
+    'iridium': 'sat_images/iridium.png',
+    'oneweb': 'sat_images/oneweb.png',
+    'science': 'sat_images/science.png',
+    'visual': 'sat_images/visual.png',
+    'leo': 'sat_images/leo.png',
+    'satnogs': 'sat_images/satnogs.png'
+};
+
+
+
+        function cargarKML() {
+            viewer.dataSources.removeAll();
+            Cesium.KmlDataSource.load('satellite_positions.kml').then(function(dataSource) {
+                viewer.dataSources.add(dataSource);
+                currentDataSource = dataSource;
+                asignarColoresYDescripciones();
+                aplicarFiltros();
+            });
+        }
+
+        cargarKML();
+
+        setInterval(() => {
+            cargarKML();
+            console.log("KML actualizado");
+        }, 60 * 1000);
+
+        function asignarColoresYDescripciones() {
+            if (!currentDataSource) return;
+            const entidades = currentDataSource.entities.values;
+
+            entidades.forEach(entidad => {
+                const nombre = entidad.name || '';
+                let grupo = null;
+
+                for (let g in colores) {
+                    if (nombre.toLowerCase().includes(`(${g})`)) {
+                        grupo = g;
+                        break;
+                    }
+                }
+
+                if (grupo) {
+                    entidad.point = new Cesium.PointGraphics({
+                        pixelSize: 15,
+                        color: colores[grupo],
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2
+                    });
+
+                    if (entidad.polyline) {
+                        const mostrarTrayectoria = document.getElementById('toggleTrajectories').checked;
+                        entidad.polyline.show = mostrarTrayectoria;
+                        entidad.polyline.material = colores[grupo];
+                        entidad.polyline.width = 2;
+                    }
+                }
+
+                let desc = entidad.description ? entidad.description.getValue(Cesium.JulianDate.now()) : '';
+
+                let altitud = extraerValor(desc, "Altitud");
+                let lat = extraerValor(desc, "Latitud");
+                let lon = extraerValor(desc, "Longitud");
+                let pais = extraerValor(desc, "País");
+                let operador = extraerValor(desc, "Operador");
+
+                let azimut, elevacion, distancia;
+
+                if (lat && lon && altitud) {
+                    const calculos = calcularAzimutElevacion(parseFloat(lat), parseFloat(lon), parseFloat(altitud));
+                    azimut = calculos.azimut.toFixed(2);
+                    elevacion = calculos.elevacion.toFixed(2);
+                    distancia = calculos.distancia.toFixed(2);
+                } else {
+                    azimut = elevacion = distancia = "No disponible";
+                }
+
+                let imagen = '';
+                if (grupo && imagenesSat[grupo]) {
+                    imagen = `<img src="${imagenesSat[grupo]}" width="300" height="300"><br/><br/>`;
+                }
+
+                entidad.description = `
+                    <div style="font-family: Arial; font-size: 14px; line-height: 1.4; max-height: 600px; overflow-y: auto;">
+                        ${imagen}
+                        <strong>Nombre:</strong> ${nombre}<br>
+                        <strong>Grupo:</strong> ${grupo || 'Desconocido'}<br>
+                        <strong>Altitud:</strong> ${altitud || 'No disponible'} km<br>
+                        <strong>País:</strong> ${pais || 'Desconocido'}<br>
+                        <strong>Operador:</strong> ${operador || 'Desconocido'}<br>
+                        <strong>Latitud:</strong> ${lat || 'No disponible'}°<br>
+                        <strong>Longitud:</strong> ${lon || 'No disponible'}°<br>
+                        <strong>Azimut (desde antena):</strong> ${azimut}°<br>
+                        <strong>Elevación:</strong> ${elevacion}°<br>
+                        <strong>Distancia antena-satélite:</strong> ${distancia} km
+                    </div>
+                `;
+
+            });
+        }
+
+        function aplicarFiltros() {
+            if (!currentDataSource) return;
+            const entidades = currentDataSource.entities.values;
+
+            const grupos = Object.keys(colores);
+            const visibilidad = {};
+            grupos.forEach(g => {
+                const checkbox = document.getElementById(g + 'Checkbox');
+                visibilidad[g] = checkbox ? checkbox.checked : false;
+            });
+
+            entidades.forEach(entidad => {
+                const nombre = entidad.name || '';
+                let grupo = null;
+                for (let g of grupos) {
+                    if (nombre.toLowerCase().includes(`(${g})`)) {
+                        grupo = g;
+                        break;
+                    }
+                }
+                entidad.show = grupo ? visibilidad[grupo] : false;
+            });
+        }
+
+        function actualizarEstacion() {
+            estacionLat = parseFloat(document.getElementById('stationLat').value);
+            estacionLon = parseFloat(document.getElementById('stationLon').value);
+            asignarColoresYDescripciones();
+            alert(`Estación base actualizada: Lat ${estacionLat}, Lon ${estacionLon}`);
+        }
+
+        function extraerValor(texto, campo) {
+            const regex = new RegExp(`<strong>${campo}:<\\/strong>\\s*([^<]*)`);
+            const match = texto.match(regex);
+            if (match) {
+                return match[1].replace(/[^\d\.\-]/g, '').trim();
+            } else {
+                return null;
+            }
+        }
+
+        function calcularAzimutElevacion(latSat, lonSat, altSatKm) {
+            const rad = Math.PI / 180;
+            const R = 6371.0;
+            const dlat = (latSat - estacionLat) * rad;
+            const dlon = (lonSat - estacionLon) * rad;
+
+            const a = Math.sin(dlat / 2) ** 2 + Math.cos(estacionLat * rad) * Math.cos(latSat * rad) * Math.sin(dlon / 2) ** 2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const baseDist = R * c;
+
+            const distancia = Math.sqrt(baseDist ** 2 + altSatKm ** 2);
+
+            const az = Math.atan2(Math.sin(dlon), Math.cos(estacionLat * rad) * Math.tan(latSat * rad) - Math.sin(estacionLat * rad) * Math.cos(dlon)) * (180 / Math.PI);
+            const azimut = (az + 360) % 360;
+            const elevacion = Math.atan2(altSatKm * 1000, baseDist * 1000) * (180 / Math.PI);
+
+            return { azimut, elevacion, distancia };
+        }
+
+        // Asignar eventos a todos los checkboxes
+        Object.keys(colores).forEach(grupo => {
+            const checkbox = document.getElementById(grupo + 'Checkbox');
+            if (checkbox) checkbox.addEventListener('change', aplicarFiltros);
+        });
+    document.getElementById('toggleTrajectories').addEventListener('change', () => {
+        asignarColoresYDescripciones();
+    });
+        function colorearLabels() {
+        Object.keys(colores).forEach(grupo => {
+            const checkbox = document.getElementById(grupo + 'Checkbox');
+            if (checkbox && checkbox.parentElement) {
+                // Convertir el color Cesium a CSS
+                const cesiumColor = colores[grupo];
+                const r = Math.round(cesiumColor.red * 255);
+                const g = Math.round(cesiumColor.green * 255);
+                const b = Math.round(cesiumColor.blue * 255);
+                checkbox.parentElement.style.color = `rgb(${r}, ${g}, ${b})`;
+            }
+        });
+    }
+    colorearLabels();
+
+           function verificarAlerta() {
+    fetch('alerta.json')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('No hay alerta.');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const mensaje = `¡ALERTA! Satélite ${data.nombre} (${data.grupo}) está cerca `;
+            document.getElementById('alertaPanel').innerText = mensaje;
+        })
+        .catch(error => {
+            document.getElementById('alertaPanel').innerText = "Sin alertas activas.";
+        });
+}
+    setInterval(verificarAlerta, 5000);
+
+// Bloquear el menú contextual del navegador
+viewer.container.addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+});
+
+let coordsSeleccionadas = null;
+
+window.addEventListener('DOMContentLoaded', function() {
+
+// Clic derecho: mostrar el popup
+viewer.screenSpaceEventHandler.setInputAction(function onRightClick(click) {
+    const cartesian = viewer.scene.camera.pickEllipsoid(click.position, viewer.scene.globe.ellipsoid);
+    if (cartesian) {
+        const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+        const lon = Cesium.Math.toDegrees(cartographic.longitude).toFixed(4);
+        const lat = Cesium.Math.toDegrees(cartographic.latitude).toFixed(4);
+
+        coordsSeleccionadas = { lat: lat, lon: lon };
+
+        const popup = document.getElementById('popupEstacion');
+        popup.style.left = click.position.x + 'px';
+        popup.style.top = click.position.y + 'px';
+        popup.style.display = 'block';
+    }
+}, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+
+// Clic en el popup: actualizar estación base
+document.getElementById('popupEstacion').addEventListener('click', function () {
+    if (coordsSeleccionadas) {
+        document.getElementById('stationLat').value = coordsSeleccionadas.lat;
+        document.getElementById('stationLon').value = coordsSeleccionadas.lon;
+        actualizarEstacion();
+        this.style.display = 'none';
+    }
+});
+
+
+// Clic izquierdo: seleccionar entidad y ocultar el popup
+viewer.screenSpaceEventHandler.setInputAction(function (click) {
+    const pickedObject = viewer.scene.pick(click.position);
+    if (Cesium.defined(pickedObject) && pickedObject.id) {
+        viewer.selectedEntity = pickedObject.id;
+    } else {
+        viewer.selectedEntity = undefined;
+    }
+    document.getElementById('popupEstacion').style.display = 'none';
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+
+// Clic izquierdo fuera: ocultar el popup
+
+});
+    </script>
+
+<div id="popupEstacion" style="
+    display: none;
+    position: absolute;
+    background-color: #222;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 8px;
+    z-index: 9999;
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+">
+    Establecer como estación base
+</div>
+
+
+</body>
+</html>

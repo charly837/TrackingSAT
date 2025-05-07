@@ -1,0 +1,5 @@
+sgp4
+skyfield
+pytz
+requests
+uagents
